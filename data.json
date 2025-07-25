@@ -1,0 +1,20 @@
+{
+    "dir": "data/CoronaryArtery",
+
+    "1": [
+        {
+          "image": "case_1/img.nii.gz",
+          "label": "case_1/lab.nii.gz",
+          "mesh": "case_1/mesh.xyz",
+          "centerline": "case_1/centerline.xyz"
+        }
+      ],
+    "2": [
+        {
+          "image": "case_2/img.nii.gz",
+          "label": "case_2/lab.nii.gz",
+          "mesh": "case_2/mesh.xyz",
+          "centerline": "case_2/centerline.xyz"
+        }
+      ]
+}
