@@ -26,64 +26,57 @@ from dataset import VesselPatchDataset  # adapt the import if the filename diffe
 #    f3 : [B,  32, 32, 32, 32]
 # -----------------------------------------------------------------------------
 class Encoder3D(nn.Module):
-    """Minimal 3‑level encoder that supplies the feature volumes required by
-    GraphSeg. Input volumes are expected to be 64×64×64 voxels. If your patch
-    size is different, adjust the `pool` strides accordingly or swap in a more
-    powerful backbone (e.g. 3D UNet, nnUNet encoder, etc.)."""
+    """Minimal 3-level encoder that supplies feature volumes required by GraphSeg.
+    Input patch is assumed to be 64×64×64 voxels (1 channel)."""
 
-    def __init__(self, in_ch=1):
+    def __init__(self, in_ch: int = 1):
         super().__init__()
 
         def conv_block(cin, cout):
             return nn.Sequential(
-                nn.Conv3d(cin, cout, kernel_size=3, padding=1, bias=False),
+                nn.Conv3d(cin, cout, 3, padding=1, bias=False),
                 nn.BatchNorm3d(cout),
                 nn.ReLU(inplace=True),
-                nn.Conv3d(cout, cout, kernel_size=3, padding=1, bias=False),
+                nn.Conv3d(cout, cout, 3, padding=1, bias=False),
                 nn.BatchNorm3d(cout),
                 nn.ReLU(inplace=True),
             )
 
-        self.enc1 = conv_block(in_ch, 32)   # (64³) → (64³)
-        self.pool1 = nn.MaxPool3d(2)        # (64³) → (32³)
-        self.enc2 = conv_block(32, 64)      # (32³) → (32³)
-        self.pool2 = nn.MaxPool3d(2)        # (32³) → (16³)
-        self.enc3 = conv_block(64, 128)     # (16³) → (16³)
-        self.pool3 = nn.MaxPool3d(2)        # (16³) → (8³)
+        self.enc1 = conv_block(in_ch, 32)     # 64³ → 64³
+        self.pool1 = nn.MaxPool3d(2)          # 64³ → 32³
+        self.enc2 = conv_block(32, 64)        # 32³ → 32³
+        self.pool2 = nn.MaxPool3d(2)          # 32³ → 16³
+        self.enc3 = conv_block(64, 128)       # 16³ → 16³
+        self.pool3 = nn.MaxPool3d(2)          # 16³ → 8³ (unused)
 
     def forward(self, x):
-        f_low = self.enc1(x)
-        x = self.pool1(f_low)
-        f_mid = self.enc2(x)
-        x = self.pool2(f_mid)
+        f_low  = self.enc1(x)
+        x      = self.pool1(f_low)
+        f_mid  = self.enc2(x)
+        x      = self.pool2(f_mid)
         f_high = self.enc3(x)
-        x = self.pool3(f_high)  # final pooling just to keep receptive‑field, not used
-
-        # return pyramid coarse→fine, matching GraphSeg order
-        #  [128×8³, 64×16³, 32×32³]
-        return [f_high, f_mid, f_low]
+        _      = self.pool3(f_high)           # keeps RF
+        return [f_high, f_mid, f_low]         # coarse→fine
 
 
 class CoronaryGeoNet(nn.Module):
-    """End‑to‑end model = 3D encoder + GraphSeg."""
+    """Encoder3D + GraphSeg = full vascular mesh generator"""
 
     def __init__(self):
         super().__init__()
-        self.encoder = Encoder3D()
-        self.graph_seg = create_model()  # default dims: (coords=3, hidden=192)
+        self.encoder   = Encoder3D()
+        self.graph_seg = create_model()
 
     def forward(self, x):
-        feats = self.encoder(x)            # list of 3 feature maps
+        feats = self.encoder(x)
         verts_list, faces_list = self.graph_seg(feats)
         return verts_list, faces_list
 
-
 # -----------------------------------------------------------------------------
-#  Utility
+#  Seed util & checkpoint helpers
 # -----------------------------------------------------------------------------
 
 def set_seed(seed: int = 42):
-    import random, numpy as np, torch
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -91,92 +84,97 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-
-def save_checkpoint(state: dict, checkpoint_dir: Path, is_best: bool = False):
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    filename = checkpoint_dir / 'latest.pth'
-    torch.save(state, filename)
+def save_checkpoint(state: dict, ckpt_dir: Path, is_best: bool = False):
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(state, ckpt_dir / 'latest.pth')
     if is_best:
-        best_name = checkpoint_dir / 'best.pth'
-        torch.save(state, best_name)
-
+        torch.save(state, ckpt_dir / 'best.pth')
 
 # -----------------------------------------------------------------------------
-#  Training & validation loops
+#  Variable-length collate_fn  ——  vols stacked, points kept as list
+# -----------------------------------------------------------------------------
+
+def collate_varlen(batch):
+    vols, pts = zip(*batch)                                # tuples length B
+    vols = torch.from_numpy(np.stack(vols))                # [B,1,64,64,64]
+    pts  = [torch.from_numpy(p) for p in pts]              # list[Tensor(N_i,3)]
+    return vols, pts
+
+# -----------------------------------------------------------------------------
+#  Train / Val loops  ——  iterate over each sample inside the batch
 # -----------------------------------------------------------------------------
 
 def train_one_epoch(model, criterion, loader, optimizer, device):
     model.train()
-    epoch_loss = 0.0
+    running = 0.0
 
-    for volume, gt_verts in tqdm(loader, desc='Train', leave=False):
-        # Adjust this unpacking according to your Dataset.__getitem__
-        volume = volume.to(device, dtype=torch.float32)        # [B, 1, 64,64,64]
-        gt_verts = gt_verts.to(device, dtype=torch.float32)    # [B, N, 3]
+    for vols, gt_list in tqdm(loader, desc='Train', leave=False):
+        vols = vols.to(device, dtype=torch.float32)
+        pred_verts_list, pred_faces_list = model(vols)     # lists over scales
+
+        # accumulate loss over samples (variable-length GT)
+        loss = 0.0
+        for b, gt_verts in enumerate(gt_list):
+            gt_verts = gt_verts.to(device, dtype=torch.float32)
+            pv = [v[b:b+1] for v in pred_verts_list]
+            pf = [f[b:b+1] for f in pred_faces_list]
+            loss += criterion((None, pv, pf), (None, gt_verts))
+        loss = loss / vols.size(0)                         # mean over batch
 
         optimizer.zero_grad()
-        pred_verts, pred_faces = model(volume)                # lists length = 3
-        loss = criterion((None, pred_verts, pred_faces), (None, gt_verts))
         loss.backward()
         optimizer.step()
+        running += loss.item() * vols.size(0)
 
-        epoch_loss += loss.item() * volume.size(0)
-
-    return epoch_loss / len(loader.dataset)
+    return running / len(loader.dataset)
 
 
 def validate(model, criterion, loader, device):
     model.eval()
-    val_loss = 0.0
+    running = 0.0
     with torch.no_grad():
-        for volume, gt_verts in tqdm(loader, desc='Val  ', leave=False):
-            volume = volume.to(device, dtype=torch.float32)
-            gt_verts = gt_verts.to(device, dtype=torch.float32)
-
-            pred_verts, pred_faces = model(volume)
-            loss = criterion((None, pred_verts, pred_faces), (None, gt_verts))
-            val_loss += loss.item() * volume.size(0)
-
-    return val_loss / len(loader.dataset)
-
+        for vols, gt_list in tqdm(loader, desc='Val  ', leave=False):
+            vols = vols.to(device, dtype=torch.float32)
+            pred_verts_list, pred_faces_list = model(vols)
+            loss = 0.0
+            for b, gt_verts in enumerate(gt_list):
+                gt_verts = gt_verts.to(device, dtype=torch.float32)
+                pv = [v[b:b+1] for v in pred_verts_list]
+                pf = [f[b:b+1] for f in pred_faces_list]
+                loss += criterion((None, pv, pf), (None, gt_verts))
+            loss = loss / vols.size(0)
+            running += loss.item() * vols.size(0)
+    return running / len(loader.dataset)
 
 # -----------------------------------------------------------------------------
-#  Main entry
+#  Main
 # -----------------------------------------------------------------------------
 
 def main(cfg):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     set_seed(cfg.get('seed', 42))
 
-    # ---------------------------------------------------------------------
-    #  Dataset & loaders – customise VesselPatchDataset as needed
-    # ---------------------------------------------------------------------
     train_ds = VesselPatchDataset(cfg['json_path'], cfg['train_indexes'], isTrain=True)
-    val_ds = VesselPatchDataset(cfg['json_path'], cfg['val_indexes'], isTrain=False)
+    val_ds   = VesselPatchDataset(cfg['json_path'], cfg['val_indexes'],   isTrain=False)
 
     train_loader = DataLoader(train_ds, batch_size=cfg['batch_size'], shuffle=True,
-                              num_workers=cfg['num_workers'], pin_memory=True, drop_last=True)
-    val_loader = DataLoader(val_ds, batch_size=cfg['batch_size'], shuffle=False,
-                            num_workers=cfg['num_workers'], pin_memory=True)
+                              num_workers=cfg['num_workers'], pin_memory=True,
+                              drop_last=True, collate_fn=collate_varlen)
+    val_loader   = DataLoader(val_ds,   batch_size=cfg['batch_size'], shuffle=False,
+                              num_workers=cfg['num_workers'], pin_memory=True,
+                              collate_fn=collate_varlen)
 
-    # ---------------------------------------------------------------------
-    #  Model, loss, optimiser, scheduler
-    # ---------------------------------------------------------------------
-    model = CoronaryGeoNet().to(device)
-    criterion = create_loss()
+    model      = CoronaryGeoNet().to(device)
+    criterion  = GraphLoss()
+    optimizer  = AdamW(model.parameters(), lr=cfg['lr'], weight_decay=1e-4)
+    scheduler  = CosineAnnealingWarmRestarts(optimizer, T_0=cfg['t0'])
 
-    optimizer = AdamW(model.parameters(), lr=cfg['lr'], weight_decay=1e-4)
-    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=cfg['t0'], T_mult=1)
-
-    # ---------------------------------------------------------------------
-    #  Training loop
-    # ---------------------------------------------------------------------
-    best_val = float('inf')
-    checkpoint_dir = Path(cfg['output_dir'])
+    best_val   = float('inf')
+    ckpt_dir   = Path(cfg['output_dir'])
 
     for epoch in range(1, cfg['epochs'] + 1):
         print(f"\nEpoch {epoch}/{cfg['epochs']}")
-        train_loss = train_one_epoch(model, criterion, train_loader, optimizer, device)
+        tr_loss = train_one_epoch(model, criterion, train_loader, optimizer, device)
         val_loss = validate(model, criterion, val_loader, device)
         scheduler.step()
 
@@ -190,33 +188,34 @@ def main(cfg):
             'optimizer_state_dict': optimizer.state_dict(),
             'scheduler_state_dict': scheduler.state_dict(),
             'best_val': best_val,
-        }, checkpoint_dir, is_best)
+        }, ckpt_dir, is_best)
 
-        print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Best: {best_val:.4f}")
+        print(f"  Train {tr_loss:.4f} | Val {val_loss:.4f} | Best {best_val:.4f}")
 
+# -----------------------------------------------------------------------------
+#  CLI wrapper
+# -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train GraphSeg based coronary model')
-    parser.add_argument('--config', type=str, required=False, default=None,
-                        help='Path to a JSON config. If omitted, default params are used.')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default=None)
     args = parser.parse_args()
 
-    # Default hyper‑parameters – override via JSON file for experiments
     default_cfg = {
-        'json_path': 'data/dataset.json',   # dataset split description
-        'train_indexes': list(range(0, 160)),
-        'val_indexes':   list(range(160, 200)),
-        'batch_size': 4,
+        'json_path': 'data/dataset.json',
+        'train_indexes': list(range(0,160)),
+        'val_indexes':   list(range(160,200)),
+        'batch_size': 2,
         'num_workers': 4,
         'lr': 1e-4,
         'epochs': 200,
-        't0': 20,                 # Cosine scheduler period
+        't0': 20,
         'seed': 42,
         'output_dir': './checkpoints/' + datetime.now().strftime('%Y%m%d-%H%M%S'),
     }
 
-    if args.config is not None:
-        with open(args.config, 'r') as fp:
+    if args.config:
+        with open(args.config) as fp:
             user_cfg = json.load(fp)
         default_cfg.update(user_cfg)
 
