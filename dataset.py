@@ -30,6 +30,7 @@ class VesselPatchDataset(Dataset):
         cfg = get_json(json_path)
 
         self.isTrain = isTrain
+        self.label: List[str] = []
         self.images: List[str] = []
         self.centerlines: List[str] = []
         self.meshes: List[str] = []
@@ -37,6 +38,7 @@ class VesselPatchDataset(Dataset):
         for idx in indexes:
             for item in cfg[idx]:
                 self.images.append(os.path.join(cfg['dir'], item['image']))
+                self.label.append(os.path.join(cfg['dir'], item['label']))
                 self.centerlines.append(os.path.join(cfg['dir'], item['centerline']))
                 self.meshes.append(os.path.join(cfg['dir'], item['mesh']))
 
@@ -49,6 +51,7 @@ class VesselPatchDataset(Dataset):
     def _random_flip(self, vol: np.ndarray, pts: np.ndarray, axis_prob: float = 0.5):
         for ax in range(3):  # 0‑Z, 1‑Y, 2‑X
             if random.random() < axis_prob:
+                print("flipped")
                 vol = np.flip(vol, axis=ax).copy()
                 pts[:, ax] = 1.0 - pts[:, ax]
         return vol, pts
@@ -56,6 +59,7 @@ class VesselPatchDataset(Dataset):
     def _random_rotate90(self, vol: np.ndarray, pts: np.ndarray, axis_prob: float = 0.5):
         for ax in range(3):
             if random.random() < axis_prob:
+                print("rotated")
                 nxt = (ax + 1) % 3
                 vol = np.rot90(vol, axes=(ax, nxt)).copy()
                 pts[:, [ax, nxt]] = pts[:, [nxt, ax]]
@@ -133,40 +137,46 @@ class VesselPatchDataset(Dataset):
             is_label=True,
             cur_origin=origin_mm,
         )
-        return res_crop, origin_mm
+        
+        cx,cy,cz = itk_img.TransformIndexToPhysicalPoint((int(cx), int(cy), int(cz)))
+        
+        return res_crop,(cx, cy, cz)
 
-    def _crop_resample_normalise_pts_mm(self, verts_mm: np.ndarray, origin_mm):
+    def _crop_resample_normalise_pts_mm(self, verts_mm: np.ndarray, center_mm) -> np.ndarray:
         """Map mesh verts (mm, order Z,X,Y) into [0,1] cube coordinates (Z,Y,X)."""
-        ox, oy, oz = origin_mm  # careful: origin_mm is (x,y,z)
-        wx, wy, wz = self.actual_patch_size  # physical cube extents
+        cx, cy, cz = center_mm #mm (Z,Y,X) order
+        wx, wy, wz = (
+            self.actual_patch_size[2],  # X
+            self.actual_patch_size[1],  # Y
+            self.actual_patch_size[0],  # Z
+        )
 
         inside = (
-            (verts_mm[:, 0] >= ox) & (verts_mm[:, 0] < ox + wx) &  # Z range
-            (verts_mm[:, 1] >= oy) & (verts_mm[:, 1] < oy + wy) &  # X range
-            (verts_mm[:, 2] >= oz) & (verts_mm[:, 2] < oz + wz)    # Y range
+            (verts_mm[:, 0] >= cx-wx/2) & (verts_mm[:, 0] <= cx + wx/2) & 
+            (verts_mm[:, 1] >= cy-wy/2) & (verts_mm[:, 1] <= cy + wy/2) & 
+            (verts_mm[:, 2] >= cz-wz/2) & (verts_mm[:, 2] <= cz + wz/2)     
         )
         pts = verts_mm[inside]
+        print(f"Mesh points inside patch: {pts.shape[0]}")
         if pts.size == 0:
             print("Warning: no mesh points inside patch, returning empty array.")
             return np.zeros((0, 3), np.float32)
-
-        local_mm = pts - np.array([oz, ox, oy], dtype=np.float32)
-        pts_vox = local_mm / np.array(self.target_spacing, dtype=np.float32)
-
-        pd, ph, pw = self.patch_size  # (Z,Y,X)
-        pts_norm = pts_vox / np.array([pd, ph, pw], dtype=np.float32)
-        return pts_norm.astype(np.float32)
+        
+        pts[:, 0] = (pts[:, 0] - cx) / (wx/2)
+        pts[:, 1] = (pts[:, 1] - cy) / (wy/2)
+        pts[:, 2] = (pts[:, 2] - cz) / (wz/2)
+        return pts.astype(np.float32)
 
     # ------------------------------------------------------------------
     # main fetch
     # ------------------------------------------------------------------
     def __getitem__(self, idx):
-        itk_img = sitk.ReadImage(self.images[idx])
+        itk_img = sitk.ReadImage(self.label[idx])
         centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
         verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
 
-        patch, origin_mm = self._random_crop(itk_img, centerline_vox)
-        points = self._crop_resample_normalise_pts_mm(verts_mm, origin_mm)
+        patch ,(cx, cy, cz)= self._random_crop(itk_img, centerline_vox)
+        points = self._crop_resample_normalise_pts_mm(verts_mm,(cx, cy, cz))
 
         if self.isTrain:
             patch, points = self._random_flip(patch, points)
@@ -174,5 +184,81 @@ class VesselPatchDataset(Dataset):
 
         patch = patch[np.newaxis, ...].astype(np.float32)  # add channel dim (1,D,H,W)
         return patch, points
+    
+    
+    
+    def visualize(self, idx):
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+        itk_img = sitk.ReadImage(self.label[idx])
+        centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
+        verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
 
-train_ds = VesselPatchDataset("data.json", indexes=["1", "2"], isTrain=False)
+        patch ,(cx, cy, cz)= self._random_crop(itk_img, centerline_vox)
+        points = self._crop_resample_normalise_pts_mm(verts_mm,(cx, cy, cz))
+        
+        if self.isTrain:
+            patch, points = self._random_flip(patch, points)
+            patch, points = self._random_rotate90(patch, points)
+        
+        patch = patch[np.newaxis, ...].astype(np.float32)
+        patch_np = patch.astype(np.float32)
+        coords = np.argwhere(patch_np > 0)
+        xs = coords[:, 3]
+        ys = coords[:, 2]
+        zs = coords[:, 1]
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), subplot_kw={"projection": "3d"})
+        
+        ax1.scatter(xs,ys,zs, s=1, alpha=0.3)
+        ax1.set_title("Patch voxels (X, Y, Z)")
+        ax1.set_xlabel("X"); ax1.set_ylabel("Y"); ax1.set_zlabel("Z")
+        
+        ax2.scatter(points[:, 0], points[:, 1], points[:, 2], s=1, alpha=0.3, c="tab:pink")
+        ax2.set_title("mesh (X, Y, Z)")
+        ax2.set_xlabel("X"); ax2.set_ylabel("Y"); ax2.set_zlabel("Z")
+        plt.tight_layout()
+        plt.show()
+    
+    def visualize_patch(self, idx):
+        import matplotlib.pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+        """Visualize the patch and mesh points for debugging."""
+        itk_img = sitk.ReadImage(self.label[idx])
+        centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
+        verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
+        
+        patch,(cx, cy, cz)= self._random_crop(itk_img, centerline_vox)
+        points = self._crop_resample_normalise_pts_mm(verts_mm, (cx, cy, cz))  
+        
+        patch_np = patch.astype(np.float32)  
+        coords_zyx = np.argwhere(patch_np)
+        voxels = coords_zyx[:, ::-1]    
+        # fig = plt.figure(figsize=(6,6))
+        # ax = fig.add_subplot(111, projection='3d')    
+        # ax.scatter(boxels[:,0], boxels[:,1], boxels[:,2], s=1, alpha=0.3)
+        # plt.show()  
+        
+        
+        # fig = plt.figure(figsize=(6,6))
+        # ax = fig.add_subplot(111, projection='3d')
+        # ax.scatter(points[:,0], points[:,1], points[:,2], s=1, alpha=0.3)
+        # plt.show()
+        
+        idx = np.random.choice(verts_mm.shape[0], 5000, replace=False)
+        mesh = verts_mm[idx]
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), subplot_kw={"projection": "3d"})
+        ax1.scatter(voxels[:, 0], voxels[:, 1], voxels[:, 2], s=1, alpha=0.3)
+        ax1.set_title("Patch voxels (X, Y, Z)")
+        ax1.set_xlabel("X"); ax1.set_ylabel("Y"); ax1.set_zlabel("Z")
+        
+        ax2.scatter(points[:, 0], points[:, 1], points[:, 2], s=1, alpha=0.3, c="tab:pink")
+        ax2.scatter(mesh[:, 0], mesh[:, 1], mesh[:, 2], s=1, alpha=0.3, c="tab:red")
+        # ax2.scatter(origin_mm[0], origin_mm[1], origin_mm[2], s=50, c='black', marker='x', label='Origin')
+        ax2.scatter(cx, cy, cz, s=100, c='green', marker='o', label='Centerline Point')
+        ax2.set_title("Points (X, Y, Z)")
+        ax2.set_xlabel("X"); ax2.set_ylabel("Y"); ax2.set_zlabel("Z")
+        plt.tight_layout()
+        plt.show()
+        
