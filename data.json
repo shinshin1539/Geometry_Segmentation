@@ -1,22 +1,237 @@
 {
     "dir": "data/CoronaryArtery",
-
     "1": [
         {
-          "image": "case_1/img.nii.gz",
-          "label": "case_1/lab.nii.gz",
-          "mesh": "case_1/mesh.xyz",
-          "centerline": "case_1/centerline.xyz",
-          "segmented": "case_1/seg.nii.gz"
+            "image": "case_1/img.nii.gz",
+            "label": "case_1/lab.nii.gz",
+            "mesh": "case_1/mesh.xyz",
+            "centerline": "case_1/centerline.xyz",
+            "segmented": "case_1/seg.nii.gz"
         }
-      ],
+    ],
     "2": [
         {
-          "image": "case_2/img.nii.gz",
-          "label": "case_2/lab.nii.gz",
-          "mesh": "case_2/mesh.xyz",
-          "centerline": "case_2/centerline.xyz",
-          "segmented": "case_2/seg.nii.gz"
+            "image": "case_2/img.nii.gz",
+            "label": "case_2/lab.nii.gz",
+            "mesh": "case_2/mesh.xyz",
+            "centerline": "case_2/centerline.xyz",
+            "segmented": "case_2/seg.nii.gz"
         }
-      ]
+    ],
+    "3": [
+        {
+            "image": "case_3/img.nii.gz",
+            "label": "case_3/lab.nii.gz",
+            "mesh": "case_3/mesh.xyz",
+            "centerline": "case_3/centerline.xyz",
+            "segmented": "case_3/seg.nii.gz"
+        }
+    ],
+    "5": [
+        {
+            "image": "case_5/img.nii.gz",
+            "label": "case_5/lab.nii.gz",
+            "mesh": "case_5/mesh.xyz",
+            "centerline": "case_5/centerline.xyz",
+            "segmented": "case_5/seg.nii.gz"
+        }
+    ],
+    "6": [
+        {
+            "image": "case_6/img.nii.gz",
+            "label": "case_6/lab.nii.gz",
+            "mesh": "case_6/mesh.xyz",
+            "centerline": "case_6/centerline.xyz",
+            "segmented": "case_6/seg.nii.gz"
+        }
+    ],
+    "7": [
+        {
+            "image": "case_7/img.nii.gz",
+            "label": "case_7/lab.nii.gz",
+            "mesh": "case_7/mesh.xyz",
+            "centerline": "case_7/centerline.xyz",
+            "segmented": "case_7/seg.nii.gz"
+        }
+    ],
+    "8": [
+        {
+            "image": "case_8/img.nii.gz",
+            "label": "case_8/lab.nii.gz",
+            "mesh": "case_8/mesh.xyz",
+            "centerline": "case_8/centerline.xyz",
+            "segmented": "case_8/seg.nii.gz"
+        }
+    ],
+    "10": [
+        {
+            "image": "case_10/img.nii.gz",
+            "label": "case_10/lab.nii.gz",
+            "mesh": "case_10/mesh.xyz",
+            "centerline": "case_10/centerline.xyz",
+            "segmented": "case_10/seg.nii.gz"
+        }
+    ],
+    "11": [
+        {
+            "image": "case_11/img.nii.gz",
+            "label": "case_11/lab.nii.gz",
+            "mesh": "case_11/mesh.xyz",
+            "centerline": "case_11/centerline.xyz",
+            "segmented": "case_11/seg.nii.gz"
+        }
+    ],
+    "12": [
+        {
+            "image": "case_12/img.nii.gz",
+            "label": "case_12/lab.nii.gz",
+            "mesh": "case_12/mesh.xyz",
+            "centerline": "case_12/centerline.xyz",
+            "segmented": "case_12/seg.nii.gz"
+        }
+    ],
+    "13": [
+        {
+            "image": "case_13/img.nii.gz",
+            "label": "case_13/lab.nii.gz",
+            "mesh": "case_13/mesh.xyz",
+            "centerline": "case_13/centerline.xyz",
+            "segmented": "case_13/seg.nii.gz"
+        }
+    ],
+    "14": [
+        {
+            "image": "case_14/img.nii.gz",
+            "label": "case_14/lab.nii.gz",
+            "mesh": "case_14/mesh.xyz",
+            "centerline": "case_14/centerline.xyz",
+            "segmented": "case_14/seg.nii.gz"
+        }
+    ],
+    "15": [
+        {
+            "image": "case_15/img.nii.gz",
+            "label": "case_15/lab.nii.gz",
+            "mesh": "case_15/mesh.xyz",
+            "centerline": "case_15/centerline.xyz",
+            "segmented": "case_15/seg.nii.gz"
+        }
+    ],
+    "16": [
+        {
+            "image": "case_16/img.nii.gz",
+            "label": "case_16/lab.nii.gz",
+            "mesh": "case_16/mesh.xyz",
+            "centerline": "case_16/centerline.xyz",
+            "segmented": "case_16/seg.nii.gz"
+        }
+    ],
+    "17": [
+        {
+            "image": "case_17/img.nii.gz",
+            "label": "case_17/lab.nii.gz",
+            "mesh": "case_17/mesh.xyz",
+            "centerline": "case_17/centerline.xyz",
+            "segmented": "case_17/seg.nii.gz"
+        }
+    ],
+    "18": [
+        {
+            "image": "case_18/img.nii.gz",
+            "label": "case_18/lab.nii.gz",
+            "mesh": "case_18/mesh.xyz",
+            "centerline": "case_18/centerline.xyz",
+            "segmented": "case_18/seg.nii.gz"
+        }
+    ],
+    "19": [
+        {
+            "image": "case_19/img.nii.gz",
+            "label": "case_19/lab.nii.gz",
+            "mesh": "case_19/mesh.xyz",
+            "centerline": "case_19/centerline.xyz",
+            "segmented": "case_19/seg.nii.gz"
+        }
+    ],
+    "20": [
+        {
+            "image": "case_20/img.nii.gz",
+            "label": "case_20/lab.nii.gz",
+            "mesh": "case_20/mesh.xyz",
+            "centerline": "case_20/centerline.xyz",
+            "segmented": "case_20/seg.nii.gz"
+        }
+    ],
+    "21": [
+        {
+            "image": "case_21/img.nii.gz",
+            "label": "case_21/lab.nii.gz",
+            "mesh": "case_21/mesh.xyz",
+            "centerline": "case_21/centerline.xyz",
+            "segmented": "case_21/seg.nii.gz"
+        }
+    ],
+    "22": [
+        {
+            "image": "case_22/img.nii.gz",
+            "label": "case_22/lab.nii.gz",
+            "mesh": "case_22/mesh.xyz",
+            "centerline": "case_22/centerline.xyz",
+            "segmented": "case_22/seg.nii.gz"
+        }
+    ],
+    "23": [
+        {
+            "image": "case_23/img.nii.gz",
+            "label": "case_23/lab.nii.gz",
+            "mesh": "case_23/mesh.xyz",
+            "centerline": "case_23/centerline.xyz",
+            "segmented": "case_23/seg.nii.gz"
+        }
+    ],
+    "24": [
+        {
+            "image": "case_24/img.nii.gz",
+            "label": "case_24/lab.nii.gz",
+            "mesh": "case_24/mesh.xyz",
+            "centerline": "case_24/centerline.xyz",
+            "segmented": "case_24/seg.nii.gz"
+        }
+    ],
+    "25": [
+        {
+            "image": "case_25/img.nii.gz",
+            "label": "case_25/lab.nii.gz",
+            "mesh": "case_25/mesh.xyz",
+            "centerline": "case_25/centerline.xyz",
+            "segmented": "case_25/seg.nii.gz"
+        }
+    ],
+    "26": [
+        {
+            "image": "case_26/img.nii.gz",
+            "label": "case_26/lab.nii.gz",
+            "mesh": "case_26/mesh.xyz",
+            "centerline": "case_26/centerline.xyz",
+            "segmented": "case_26/seg.nii.gz"
+        }
+    ],
+    "27": [
+        {
+            "image": "case_27/img.nii.gz",
+            "label": "case_27/lab.nii.gz",
+            "mesh": "case_27/mesh.xyz",
+            "centerline": "case_27/centerline.xyz",
+            "segmented": "case_27/seg.nii.gz"
+        }
+    ],
+    "28": [
+        {
+            "image": "case_28/img.nii.gz",
+            "label": "case_28/lab.nii.gz",
+            "mesh": "case_28/mesh.xyz",
+            "centerline": "case_28/centerline.xyz",
+            "segmented": "case_28/seg.nii.gz"
+        }
+    ]
 }

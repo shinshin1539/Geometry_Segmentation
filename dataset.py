@@ -14,12 +14,12 @@ class VesselPatchDataset(Dataset):
     """Dataset that returns a (C=1,D,H,W) patch and normalised mesh points."""
 
     # voxel dimensions of the resampled cube in (D,Z)‑first ndarray order
-    patch_size: Tuple[int, int, int] = (64, 64, 64)  # (Z, Y, X)
+    patch_size: Tuple[int, int, int] = (64, 64, 64)  
 
-    # physical edge length of the crop cube in millimetres (isotropic)
+    # physical edge length of the crop cube in millimetres
     actual_patch_size: Tuple[float, float, float] = (32.0, 32.0, 32.0)  # mm
 
-    # target isotropic voxel spacing after resample (X, Y, Z)
+    # target isotropic voxel spacing after resample
     target_spacing: Tuple[float, float, float] = (0.5, 0.5, 0.5)  # mm
 
     # ------------------------------------------------------------------
@@ -52,18 +52,16 @@ class VesselPatchDataset(Dataset):
     def _random_flip(self, vol: np.ndarray, pts: np.ndarray, axis_prob: float = 0.5):
         for ax in range(3):  # 0‑Z, 1‑Y, 2‑X
             if random.random() < axis_prob:
-                print("flipped")
                 vol = np.flip(vol, axis=ax).copy()
-                pts[:, ax] = 1.0 - pts[:, ax]
+                pts[:, ax] = - pts[:, ax]
         return vol, pts
 
     def _random_rotate90(self, vol: np.ndarray, pts: np.ndarray, axis_prob: float = 0.5):
         for ax in range(3):
             if random.random() < axis_prob:
-                print("rotated")
                 nxt = (ax + 1) % 3
                 vol = np.rot90(vol, axes=(ax, nxt)).copy()
-                pts[:, [ax, nxt]] = pts[:, [nxt, ax]]
+                pts[:, [ax, nxt]] = -pts[:, [nxt, ax]]
         return vol, pts
 
     # ------------------------------------------------------------------
@@ -109,7 +107,7 @@ class VesselPatchDataset(Dataset):
         cz, cy, cx = map(int, random.choice(centerline_vox))
 
         # ------- 2) 必要なパッチ寸法 (voxel) -------
-        sx, sy, sz = itk_img.GetSpacing()        # (x,y,z)
+        sx, sy, sz = itk_img.GetSpacing()   
         pw = int(round(self.actual_patch_size[2] / sx))
         ph = int(round(self.actual_patch_size[1] / sy))
         pd = int(round(self.actual_patch_size[0] / sz))
@@ -127,7 +125,7 @@ class VesselPatchDataset(Dataset):
             size=[pw, ph, pd],
             index=[int(x0), int(y0), int(z0)],
         )
-        crop_arr   = sitk.GetArrayFromImage(roi)          # (Z,Y,X)
+        crop_arr   = sitk.GetArrayFromImage(roi)  
         origin_mm  = itk_img.TransformIndexToPhysicalPoint((int(x0), int(y0), int(z0)))
 
         # ------- 4) リサンプリング -------
@@ -143,13 +141,13 @@ class VesselPatchDataset(Dataset):
         
         return res_crop,(cx, cy, cz)
 
-    def _crop_resample_normalise_pts_mm(self, verts_mm: np.ndarray, center_mm) -> np.ndarray:
+    def _crop_resample_normalise_pts_mm(self, verts_mm: np.ndarray, center_mm, idx) -> np.ndarray:
         """Map mesh verts (mm, order Z,X,Y) into [0,1] cube coordinates (Z,Y,X)."""
-        cx, cy, cz = center_mm #mm (Z,Y,X) order
+        cx, cy, cz = center_mm
         wx, wy, wz = (
-            self.actual_patch_size[2],  # X
-            self.actual_patch_size[1],  # Y
-            self.actual_patch_size[0],  # Z
+            self.actual_patch_size[2],  
+            self.actual_patch_size[1],  
+            self.actual_patch_size[0],  
         )
 
         inside = (
@@ -158,9 +156,10 @@ class VesselPatchDataset(Dataset):
             (verts_mm[:, 2] >= cz-wz/2) & (verts_mm[:, 2] <= cz + wz/2)     
         )
         pts = verts_mm[inside]
-        print(f"Mesh points inside patch: {pts.shape[0]}")
+        # print(f"Mesh points inside patch: {pts.shape[0]}")
         if pts.size == 0:
-            print("Warning: no mesh points inside patch, returning empty array.")
+            # print("Warning: no mesh points inside patch, returning empty array.")
+            # print(f"Index: {idx}")
             return np.zeros((0, 3), np.float32)
         
         pts[:, 0] = (pts[:, 0] - cx) / (wx/2)
@@ -175,9 +174,15 @@ class VesselPatchDataset(Dataset):
         itk_img = sitk.ReadImage(self.segmented[idx])
         centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
         verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
+        
+        while True:
+            patch ,(cx, cy, cz)= self._random_crop(itk_img, centerline_vox)
+            points = self._crop_resample_normalise_pts_mm(verts_mm,(cx, cy, cz),idx)
+            if points.shape[0] > 50:
+                break
+        if points.shape[0] == 0:
+            print(f"Warning: no mesh points inside patch for index {idx}, returning empty patch.")
 
-        patch ,(cx, cy, cz)= self._random_crop(itk_img, centerline_vox)
-        points = self._crop_resample_normalise_pts_mm(verts_mm,(cx, cy, cz))
 
         if self.isTrain:
             patch, points = self._random_flip(patch, points)

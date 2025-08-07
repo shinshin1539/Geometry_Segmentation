@@ -72,7 +72,7 @@ def save_centerline(coords_zyx, out_path):
     
     
 base_dir = "data/CoronaryArtery/"
-for i in range(1,3):
+for i in range(10,31):
     dir = base_dir + f"case_{i}/"
     nii_path = dir + f"seg.nii.gz"
     out_path = dir + "centerline.xyz"

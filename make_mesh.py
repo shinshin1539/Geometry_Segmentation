@@ -29,7 +29,7 @@ def label_to_xyz_lps(label_path: Path,
 
 dir = './data/CoronaryArtery/'
 
-for i in range(1, 3):
+for i in range(1, 28):
     path = dir + f"case_{i}/lab.nii.gz"
     print(path)
     label_to_xyz_lps(path, level=0.5, step=1)

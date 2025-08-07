@@ -162,7 +162,7 @@ def main(cfg):
 
     train_loader = DataLoader(train_ds, batch_size=cfg['batch_size'], shuffle=True,
                               num_workers=cfg['num_workers'], pin_memory=True,
-                              drop_last=True, collate_fn=collate_varlen)
+                              drop_last=False, collate_fn=collate_varlen)
     val_loader   = DataLoader(val_ds,   batch_size=cfg['batch_size'], shuffle=False,
                               num_workers=cfg['num_workers'], pin_memory=True,
                               collate_fn=collate_varlen)
@@ -173,7 +173,7 @@ def main(cfg):
     
     criterion  = create_loss()
     optimizer  = AdamW(model.parameters(), lr=cfg['lr'], weight_decay=1e-4)
-    scheduler  = CosineAnnealingWarmRestarts(optimizer, T_0=cfg['t0'])
+    scheduler  = CosineAnnealingWarmRestarts(optimizer, T_0=cfg["epochs"])
 
     best_val   = float('inf')
     ckpt_dir   = Path(cfg['output_dir'])
@@ -209,13 +209,12 @@ if __name__ == '__main__':
 
     default_cfg = {
         'json_path': 'data.json',
-        'train_indexes': list(range(1,3)),
-        'val_indexes':   list(range(1,3)),
-        'batch_size': 5,
+        'train_indexes': [1,2,3,5,6,7,8,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28],
+        'val_indexes':   [1,2,3],
+        'batch_size': 4,
         'num_workers': 4,
-        'lr': 1e-4,
-        'epochs': 3,
-        't0': 20,
+        'lr': 3e-5,
+        'epochs': 30,
         'seed': 42,
         'output_dir': './checkpoints/' + datetime.now().strftime('%Y%m%d-%H%M%S'),
     }

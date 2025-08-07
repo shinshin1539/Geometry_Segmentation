@@ -18,10 +18,10 @@ class MeshLoss(nn.Module):
         self,
         *,
         weight_chamfer=1.0,
-        num_samples=5000,
-        weight_edge=1.0,
-        weight_norm=0.1,
-        weight_lapa=0.1,
+        num_samples=15000,
+        weight_edge=0.5,
+        weight_norm=0.02,
+        weight_lapa=0.02,
     ):
         super().__init__()
         self.num_samples = num_samples

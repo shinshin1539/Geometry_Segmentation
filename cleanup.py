@@ -170,7 +170,7 @@ def cleanup_coronary_segmentation(nii_path,out_path, pre_radius=2, connectivity=
 
 
 base_dir = "data/CoronaryArtery/"
-for i in range(1, 11):
+for i in range(10, 31):
     dir = base_dir + f"case_{i}/"
     nii_path = dir + f"coronary_{i}.nii.gz"
     out_path = dir + "seg.nii.gz"

@@ -6,3 +6,5 @@ data/
 buckup/
 test_scripts/
 .*
+checkpoint/
+*.json
