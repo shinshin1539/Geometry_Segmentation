@@ -31,19 +31,20 @@ class VesselPatchDataset(Dataset):
 
         self.isTrain = isTrain
         self.label: List[str] = []
-        self.images: List[str] = []
+        self.segmented: List[str] = []
         self.centerlines: List[str] = []
         self.meshes: List[str] = []
 
         for idx in indexes:
-            for item in cfg[idx]:
-                self.images.append(os.path.join(cfg['dir'], item['image']))
+            i = str(idx)
+            for item in cfg[i]:
+                self.segmented.append(os.path.join(cfg['dir'], item['segmented']))
                 self.label.append(os.path.join(cfg['dir'], item['label']))
                 self.centerlines.append(os.path.join(cfg['dir'], item['centerline']))
                 self.meshes.append(os.path.join(cfg['dir'], item['mesh']))
 
     def __len__(self) -> int:
-        return len(self.images)
+        return len(self.label)
 
     # ------------------------------------------------------------------
     # data‑augmentation helpers (operate on ndarray (Z,Y,X) & pts (Z,Y,X))
@@ -171,7 +172,7 @@ class VesselPatchDataset(Dataset):
     # main fetch
     # ------------------------------------------------------------------
     def __getitem__(self, idx):
-        itk_img = sitk.ReadImage(self.label[idx])
+        itk_img = sitk.ReadImage(self.segmented[idx])
         centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
         verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
 
@@ -190,7 +191,7 @@ class VesselPatchDataset(Dataset):
     def visualize(self, idx):
         import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d import Axes3D
-        itk_img = sitk.ReadImage(self.label[idx])
+        itk_img = sitk.ReadImage(self.segmented[idx])
         centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
         verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
 
@@ -220,45 +221,4 @@ class VesselPatchDataset(Dataset):
         plt.tight_layout()
         plt.show()
     
-    def visualize_patch(self, idx):
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
-        """Visualize the patch and mesh points for debugging."""
-        itk_img = sitk.ReadImage(self.label[idx])
-        centerline_vox = np.loadtxt(self.centerlines[idx], dtype=np.float32)
-        verts_mm = np.loadtxt(self.meshes[idx], dtype=np.float32)
-        
-        patch,(cx, cy, cz)= self._random_crop(itk_img, centerline_vox)
-        points = self._crop_resample_normalise_pts_mm(verts_mm, (cx, cy, cz))  
-        
-        patch_np = patch.astype(np.float32)  
-        coords_zyx = np.argwhere(patch_np)
-        voxels = coords_zyx[:, ::-1]    
-        # fig = plt.figure(figsize=(6,6))
-        # ax = fig.add_subplot(111, projection='3d')    
-        # ax.scatter(boxels[:,0], boxels[:,1], boxels[:,2], s=1, alpha=0.3)
-        # plt.show()  
-        
-        
-        # fig = plt.figure(figsize=(6,6))
-        # ax = fig.add_subplot(111, projection='3d')
-        # ax.scatter(points[:,0], points[:,1], points[:,2], s=1, alpha=0.3)
-        # plt.show()
-        
-        idx = np.random.choice(verts_mm.shape[0], 5000, replace=False)
-        mesh = verts_mm[idx]
-        
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), subplot_kw={"projection": "3d"})
-        ax1.scatter(voxels[:, 0], voxels[:, 1], voxels[:, 2], s=1, alpha=0.3)
-        ax1.set_title("Patch voxels (X, Y, Z)")
-        ax1.set_xlabel("X"); ax1.set_ylabel("Y"); ax1.set_zlabel("Z")
-        
-        ax2.scatter(points[:, 0], points[:, 1], points[:, 2], s=1, alpha=0.3, c="tab:pink")
-        ax2.scatter(mesh[:, 0], mesh[:, 1], mesh[:, 2], s=1, alpha=0.3, c="tab:red")
-        # ax2.scatter(origin_mm[0], origin_mm[1], origin_mm[2], s=50, c='black', marker='x', label='Origin')
-        ax2.scatter(cx, cy, cz, s=100, c='green', marker='o', label='Centerline Point')
-        ax2.set_title("Points (X, Y, Z)")
-        ax2.set_xlabel("X"); ax2.set_ylabel("Y"); ax2.set_zlabel("Z")
-        plt.tight_layout()
-        plt.show()
         

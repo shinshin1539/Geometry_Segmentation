@@ -1,6 +1,8 @@
 import os
 import argparse
 import json
+import random
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 
@@ -156,6 +158,7 @@ def main(cfg):
 
     train_ds = VesselPatchDataset(cfg['json_path'], cfg['train_indexes'], isTrain=True)
     val_ds   = VesselPatchDataset(cfg['json_path'], cfg['val_indexes'],   isTrain=False)
+    
 
     train_loader = DataLoader(train_ds, batch_size=cfg['batch_size'], shuffle=True,
                               num_workers=cfg['num_workers'], pin_memory=True,
@@ -163,9 +166,12 @@ def main(cfg):
     val_loader   = DataLoader(val_ds,   batch_size=cfg['batch_size'], shuffle=False,
                               num_workers=cfg['num_workers'], pin_memory=True,
                               collate_fn=collate_varlen)
+    print("data is loaded!!")
 
     model      = CoronaryGeoNet().to(device)
-    criterion  = GraphLoss()
+    print("model is loaded!!")
+    
+    criterion  = create_loss()
     optimizer  = AdamW(model.parameters(), lr=cfg['lr'], weight_decay=1e-4)
     scheduler  = CosineAnnealingWarmRestarts(optimizer, T_0=cfg['t0'])
 
@@ -202,13 +208,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     default_cfg = {
-        'json_path': 'data/dataset.json',
-        'train_indexes': list(range(0,160)),
-        'val_indexes':   list(range(160,200)),
-        'batch_size': 2,
+        'json_path': 'data.json',
+        'train_indexes': list(range(1,3)),
+        'val_indexes':   list(range(1,3)),
+        'batch_size': 5,
         'num_workers': 4,
         'lr': 1e-4,
-        'epochs': 200,
+        'epochs': 3,
         't0': 20,
         'seed': 42,
         'output_dir': './checkpoints/' + datetime.now().strftime('%Y%m%d-%H%M%S'),

@@ -1,4 +1,6 @@
-# GraphLoss.py
+# ============================================================================
+# GraphLoss.py  (variable‑length GT compatible)
+# ============================================================================
 from pytorch3d.loss import (
     chamfer_distance,
     mesh_laplacian_smoothing,
@@ -29,42 +31,37 @@ class MeshLoss(nn.Module):
         self.wl = weight_lapa
 
     def forward(self, input, target):
-        """
-        input  : [verts_b, faces_b]  (Tensor(Np,3), Tensor(Fp,3))
-        target : gt verts            (Tensor(Nt,3))
-        """
-        verts, faces = input
-        gt_verts = target
-
-        mesh = Meshes(verts=[verts], faces=[faces])  # list 化が必須
+        verts, faces = input                # Tensor(Np,3), Tensor(Fp,3)
+        gt_verts = target                   # Tensor(Nt,3)
+        mesh = Meshes(verts=[verts], faces=[faces])
         pts_pred = sample_points_from_meshes(mesh, num_samples=self.num_samples)
 
-        chamfer = chamfer_distance(pts_pred, gt_verts[None])[0] * self.wc
-        lapa    = mesh_laplacian_smoothing(mesh) * self.wl
-        edge    = mesh_edge_loss(mesh)           * self.we
-        norm    = mesh_normal_consistency(mesh)  * self.wn
-        return chamfer, lapa, edge, norm
+        cham = chamfer_distance(pts_pred, gt_verts[None])[0] * self.wc
+        lapa = mesh_laplacian_smoothing(mesh) * self.wl
+        edge = mesh_edge_loss(mesh) * self.we
+        norm = mesh_normal_consistency(mesh) * self.wn
+        return cham, lapa, edge, norm
 
 
 class GraphLoss(nn.Module):
-    """
-    - p_verts / p_faces : 各スケールとも shape = (1,Np,3) / (1,Fp,3)
-    - gt_verts          : (Nt,3)  – 1 サンプル分のみ
-    """
+    """Aggregates MeshLoss over multi‑scale vertex predictions."""
 
     def __init__(self, **kwargs):
         super().__init__()
-        self.criterion = MeshLoss(**kwargs)
+        self.base = MeshLoss(**kwargs)
 
     def forward(self, inputs, target):
-        _, p_verts_list, p_faces_list = inputs
-        _, gt_verts = target
+        _, p_verts, p_faces = inputs  # lists over scales, each (1,Np,3)
+        _, gt_verts = target          # Tensor(Nt,3)
 
-        chamfer = lapa = edge = norm = 0.0
-        for v, f in zip(p_verts_list, p_faces_list):
-            # squeeze(0) : バッチ次元を落とす → (Np,3)
-            c, l, e, n = self.criterion([v.squeeze(0), f.squeeze(0)], gt_verts)
-            chamfer += c; lapa += l; edge += e; norm += n
+        cham = lapa = edge = norm = 0.0
+        for v, f in zip(p_verts, p_faces):
+            c, l, e, n = self.base([v.squeeze(0), f.squeeze(0)], gt_verts)
+            cham += c; lapa += l; edge += e; norm += n
+        return cham + lapa + edge + norm
 
-        return chamfer + lapa + edge + norm
+
+def create_loss(**kwargs):
+    """Back‑compat wrapper so older scripts can `from GraphLoss import create_loss`."""
+    return GraphLoss(**kwargs)
 

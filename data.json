@@ -6,7 +6,8 @@
           "image": "case_1/img.nii.gz",
           "label": "case_1/lab.nii.gz",
           "mesh": "case_1/mesh.xyz",
-          "centerline": "case_1/centerline.xyz"
+          "centerline": "case_1/centerline.xyz",
+          "segmented": "case_1/seg.nii.gz"
         }
       ],
     "2": [
@@ -14,7 +15,8 @@
           "image": "case_2/img.nii.gz",
           "label": "case_2/lab.nii.gz",
           "mesh": "case_2/mesh.xyz",
-          "centerline": "case_2/centerline.xyz"
+          "centerline": "case_2/centerline.xyz",
+          "segmented": "case_2/seg.nii.gz"
         }
       ]
 }
